@@ -1,0 +1,32 @@
+version: '3.9'
+
+services:
+  mysql:
+    image: mysql:8
+    container_name: rideflow-mysql
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: Siddi1507
+      MYSQL_DATABASE: RideFlow
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  redis:
+    image: redis:7
+    container_name: rideflow-redis
+    restart: always
+    ports:
+      - '6379:6379'
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rideflow-rabbitmq
+    restart: always
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+
+volumes:
+  mysql_data:
