@@ -3,6 +3,7 @@ import { PrismaService } from 'prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt'
 import { LoggerService } from 'src/common/logger/logger.service';
+import { isInstance } from 'class-validator';
 
 @Injectable()
 export class AuthService {
@@ -82,6 +83,9 @@ export class AuthService {
             }
         } catch (error) {
             this.logger.log(JSON.stringify(error))
+            throw new BadRequestException({
+                message: error
+            })
         }
     }
 }
