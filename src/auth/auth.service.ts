@@ -2,12 +2,14 @@ import { BadRequestException, Injectable, UnauthorizedException } from '@nestjs/
 import { PrismaService } from 'prisma/prisma.service';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt'
+import { LoggerService } from 'src/common/logger/logger.service';
 
 @Injectable()
 export class AuthService {
     constructor(
         private prisma: PrismaService,
-        private jwtService: JwtService
+        private jwtService: JwtService,
+        private logger: LoggerService
     ) { }
 
     // Used to register the user to the app
@@ -79,7 +81,7 @@ export class AuthService {
                 }
             }
         } catch (error) {
-
+            this.logger.log(JSON.stringify(error))
         }
     }
 }
