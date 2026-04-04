@@ -5,16 +5,18 @@ import { PassportModule } from '@nestjs/passport';
 import { JwtModule } from '@nestjs/jwt';
 import { JwtStrategy } from './strategy/jwt.strategy';
 import { PrismaModule } from 'prisma/prisma.module';
+import { LoggerModule } from 'src/common/logger/logger.module';
 
 @Module({
   controllers: [AuthController],
   providers: [AuthService, JwtStrategy],
   imports: [PassportModule,
+    LoggerModule,
     JwtModule.register({
       secret: process.env.JWT_SECRET,
       signOptions: { expiresIn: '1h' }
     }),
-    PrismaModule
+    PrismaModule,
   ],
   exports: [AuthService]
 })
