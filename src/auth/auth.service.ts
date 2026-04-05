@@ -56,8 +56,7 @@ export class AuthService {
                 throw new BadRequestException('Invalid credentials')
             }
 
-            let comparePassword = await bcrypt.compare(user.password, data.password ?? '')
-
+            let comparePassword = await bcrypt.compare(data.password.trim(),user.password.trim())
             if(!comparePassword) {
                 throw new UnauthorizedException('Invalid credentials')
             }

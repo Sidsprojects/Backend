@@ -4,13 +4,15 @@ import { identity } from 'rxjs';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { RideStatus } from 'src/constants';
 import { BookRide, CancelRide, CreateRide, GetAllRides, GetRideById } from 'src/Dto/rides.dto';
+import { ReddisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class RidesService {
 
     constructor(
         private prisma: PrismaService,
-        private logger: LoggerService
+        private logger: LoggerService,
+        private redisService: ReddisService
     ) { }
 
     public async createRide(@Body() payload: CreateRide) {
@@ -19,24 +21,37 @@ export class RidesService {
                 data: {
                     pickupLocation: payload?.pickupLocation,
                     destination: payload?.destination,
-                    driverId: userId,
+                    driverId: payload?.userId,
                     price: payload?.price ?? 0,
                     seatsAvailable: payload?.seatsAvailable ?? -1
                 }
             })
-            this.logger.log(`The ride was created by user: ${userId}`)
+
+            if (!createdRide) {
+                throw new BadRequestException({
+                    message: 'There was an error in creating the Ride'
+                })
+            }
+            this.logger.log(`The ride was created by user: ${payload.userId}`)
             return createdRide
         } catch (error) {
             this.logger.error('Error in ride creation', error)
-            throw new BadRequestException({
-                message: `Error during ride creation: ${error}`
-            })
+            throw new BadRequestException(error)
         }
     }
 
     public async getAllRides(@Body() payload: GetAllRides) {
         try {
-            let rides = this.prisma.ride.findMany({
+
+            const redis = this.redisService.getClient()
+            const cachedRides = await redis.get('All_rides')
+
+            if(cachedRides) {
+                this.logger.log(`Getting all the rides from redis cache`)
+                return JSON.parse(cachedRides)
+            }
+
+            let rides = await this.prisma.ride.findMany({
                 include: {
                     driver: {
                         select: {
@@ -48,6 +63,8 @@ export class RidesService {
                 }
             })
 
+            await redis.set('All_rides', JSON.stringify(rides), 'EX', 60)
+
             return rides ?? []
         } catch (err) {
             throw new BadRequestException({
@@ -58,6 +75,15 @@ export class RidesService {
 
     public async getRideById(@Body() payload: GetRideById) {
         try {
+            const redis = this.redisService.getClient()
+            const cacheKey = `ride_${payload.rideId}`
+
+            let cachedRideById = await redis.get(cacheKey)
+
+            if(cachedRideById) {
+                return JSON.parse(cachedRideById ?? {})
+            }
+
             let ride = this.prisma.ride.findUnique({
                 where: {
                     id: payload.rideId
@@ -68,13 +94,15 @@ export class RidesService {
                 }
             })
 
+            await redis.set(cacheKey, JSON.stringify(ride), 'EX', 30)
+
             if (!ride) {
                 throw new BadRequestException({
                     message: 'Ride was not found'
                 })
             }
-
             return ride
+
         } catch (err) {
             this.logger.error(`Error in getRideByID: ${err}`)
             throw new BadRequestException({
@@ -105,7 +133,7 @@ export class RidesService {
 
             if (ride.driverId == payload.userId) {
                 throw new BadRequestException({
-                    message: `A driver:${payload.userId} cannot book his own ride`
+                    message: `A driver with driver Id:${payload.userId} cannot book his own ride`
                 })
             }
 
@@ -149,6 +177,7 @@ export class RidesService {
             }
         } catch (err) {
             this.logger.error(`Error in bookRide: ${err}`)
+            throw new BadRequestException(err)
         }
 
 
@@ -187,6 +216,7 @@ export class RidesService {
 
         } catch (err) {
             this.logger.error(`The is an Error in cancel Ride: ${err}`)
+            throw new BadRequestException(err)
         }
 
     }

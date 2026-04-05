@@ -19,7 +19,7 @@ export class RidesController {
         return this.appService.getAllRides(payload ?? {})
     }
 
-    @Post('getSingleRide')
+    @Post('/getRideById')
     async getRideById(@Body() payload: GetRideById) {
         return this.appService.getRideById(payload ?? {})
     }
