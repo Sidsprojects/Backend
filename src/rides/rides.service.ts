@@ -109,6 +109,12 @@ export class RidesService {
                 })
             }
 
+            if (ride.status === RideStatus.RideCancelled) {
+                throw new BadRequestException({
+                    message: `Ride ${ride.id} has been cancelled and cannot be booked`
+                })
+            }
+
             let existingBooking = await this.prisma.rideBooking.findFirst({
                 where: {
                     rideId: payload?.rideId,
