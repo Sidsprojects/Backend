@@ -4,13 +4,15 @@ import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt'
 import { LoggerService } from 'src/common/logger/logger.service';
 import { isInstance } from 'class-validator';
+import { ReddisService } from 'src/redis/redis.service';
 
 @Injectable()
 export class AuthService {
     constructor(
         private prisma: PrismaService,
         private jwtService: JwtService,
-        private logger: LoggerService
+        private logger: LoggerService,
+        private redisService: ReddisService
     ) { }
 
     // Used to register the user to the app
@@ -48,6 +50,9 @@ export class AuthService {
 
     async login(data: any) {
         try {
+
+            const redis = this.redisService.getClient()
+            
             const user = await this.prisma.user.findUnique({
                 where: { email: data.email ?? '' }
             })
@@ -70,6 +75,8 @@ export class AuthService {
                 secret: process.env.JWT_REFRESH_SECRET,
                 expiresIn: '7d'
             })
+
+            await redis.set(`refresh_token_${user.id}`, refreshToken, 'EX', 7*24*60*60)
 
             return {
                 accessToken,

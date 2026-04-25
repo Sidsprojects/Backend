@@ -17,6 +17,9 @@ export class RidesService {
 
     public async createRide(@Body() payload: CreateRide) {
         try {
+
+            const redis = this.redisService.getClient();
+
             let createdRide = this.prisma.ride.create({
                 data: {
                     pickupLocation: payload?.pickupLocation,
@@ -26,6 +29,8 @@ export class RidesService {
                     seatsAvailable: payload?.seatsAvailable ?? -1
                 }
             })
+
+            await redis.del('All_rides')
 
             if (!createdRide) {
                 throw new BadRequestException({
@@ -63,7 +68,7 @@ export class RidesService {
                 }
             })
 
-            await redis.set('All_rides', JSON.stringify(rides), 'EX', 60)
+            await redis.set('All_rides', JSON.stringify(rides), 'EX', 10)
 
             return rides ?? []
         } catch (err) {
@@ -113,6 +118,8 @@ export class RidesService {
 
     public async bookRide(@Body() payload: BookRide) {
         try {
+            const redis = this.redisService.getClient()
+
             let ride = await this.prisma.ride.findUnique({
                 where: {
                     id: payload.rideId
@@ -172,6 +179,9 @@ export class RidesService {
                 }
             })
 
+            await redis.del('All_rides')
+            await redis.del(`ride_${payload.rideId}`)
+
             return {
                 bookRide
             }
@@ -185,6 +195,9 @@ export class RidesService {
 
     public async cancelRide(@Body() payload: CancelRide) {
         try {
+
+            const redis = this.redisService.getClient()
+
             let ride = await this.prisma.ride.findUnique({
                 where: {
                     id: payload.rideId
@@ -211,6 +224,9 @@ export class RidesService {
             })
 
             this.logger.warn(`Ride ${payload.rideId} cancelled by user ${payload.userId}`);
+
+            await redis.del('All_rides')
+            await redis.del(`ride_${payload.rideId}`)
 
             return updateRide;
 
