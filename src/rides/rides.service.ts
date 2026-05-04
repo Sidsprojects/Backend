@@ -4,7 +4,9 @@ import { identity } from 'rxjs';
 import { LoggerService } from 'src/common/logger/logger.service';
 import { RideStatus } from 'src/constants';
 import { BookRide, CancelRide, CreateRide, GetAllRides, GetRideById } from 'src/Dto/rides.dto';
+import { RabbitMQService } from 'src/rabbitmq/rabbitmq.service';
 import { ReddisService } from 'src/redis/redis.service';
+import { RideGateway } from 'src/sockets/ride.gateway';
 
 @Injectable()
 export class RidesService {
@@ -12,7 +14,9 @@ export class RidesService {
     constructor(
         private prisma: PrismaService,
         private logger: LoggerService,
-        private redisService: ReddisService
+        private redisService: ReddisService,
+        private rmqService: RabbitMQService,
+        private gateway: RideGateway
     ) { }
 
     public async createRide(@Body() payload: CreateRide) {
@@ -20,7 +24,7 @@ export class RidesService {
 
             const redis = this.redisService.getClient();
 
-            let createdRide = this.prisma.ride.create({
+            let createdRide = await this.prisma.ride.create({
                 data: {
                     pickupLocation: payload?.pickupLocation,
                     destination: payload?.destination,
@@ -33,7 +37,7 @@ export class RidesService {
             await redis.del('All_rides')
 
             if (!createdRide) {
-                throw new BadRequestException({
+                 throw new BadRequestException({
                     message: 'There was an error in creating the Ride'
                 })
             }
@@ -182,6 +186,20 @@ export class RidesService {
             await redis.del('All_rides')
             await redis.del(`ride_${payload.rideId}`)
 
+            await this.gateway.server.to(`ride_${payload.rideId}`).emit('ride_booked', {
+                rideId: payload.rideId,
+                userId: payload.userId
+            })
+
+            await this.rmqService.publish(
+                'ride_events',
+                {
+                    type: 'RIDE_BOOKED',
+                    userId: payload.userId,
+                    rideId: payload.rideId
+                }
+            )
+
             return {
                 bookRide
             }
@@ -227,6 +245,15 @@ export class RidesService {
 
             await redis.del('All_rides')
             await redis.del(`ride_${payload.rideId}`)
+
+            await this.rmqService.publish(
+                'ride_events',
+                {
+                    type: 'RIDE_CANCEL',    
+                    userId: payload.userId,
+                    rideId: payload.rideId
+                }
+            )
 
             return updateRide;
 
